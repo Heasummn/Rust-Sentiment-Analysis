@@ -29,6 +29,4 @@ fn main() {
             println!("Invalid input! (Case C)")
         }
     }
-
-
 }

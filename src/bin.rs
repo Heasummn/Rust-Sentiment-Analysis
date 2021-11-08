@@ -1,5 +1,5 @@
 use std::env;
-use dialoguer::{Select, theme::ColorfulTheme};
+use dialoguer::{Select, Input, theme::ColorfulTheme};
 
 // TO USE, RUN:
 // $ rustc src/bin.rs
@@ -12,13 +12,18 @@ fn main() {
 
     if arguments.len() < 2 {
         // Using the actual CLI (activates with no command line arguments);
-        let selection = initalize_cli();
+        let integrations = vec!["CSV File Input", "Twitter Data"];
+        let input_method = init_cli(integrations);
 
-        match selection {
+        
+        match input_method {
             0 => println!("Index 0"),
             1 => println!("Index 1"),
             _ => println!("Unseen index!") //Should never happen (new function called for each input format)
         }
+
+        let string = get_input("Test Input");
+        println!("{}", string);
         
     } else {
         // Passed in as arguments, and not using the CLI
@@ -42,13 +47,23 @@ fn main() {
     }   
 }
 
-fn initalize_cli() -> usize  {
-    let items = vec!["CSV File Input", "Twitter Data"];
+
+// Initialize CLI, with the different options. Return choice index
+fn init_cli(items: Vec<&str>) -> usize  {
     let selection: usize = Select::with_theme(&ColorfulTheme::default())
         .items(&items)
         .default(0)
         .interact()
         .unwrap();    
-
     return selection;
+}
+
+// use the CLI to get a string input
+fn get_input(prompt: &str) -> String {
+    let input : String = Input::with_theme(&ColorfulTheme::default())
+        .with_prompt(prompt.to_string())
+        .with_initial_text("")
+        .interact_text()
+        .unwrap();
+    return input;
 }

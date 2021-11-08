@@ -3,6 +3,16 @@ name = "cs128-honors"
 version = "0.1.0"
 edition = "2018"
 
+[lib]
+name = "sentiment_analyzer"
+path = "src/lib.rs"
+
+[[bin]]
+name = "sentiment_test"
+path = "src/bin.rs"
+
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+sentiment = "0.1.1"
+chrono = "0.4"

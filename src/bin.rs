@@ -21,7 +21,9 @@ fn main() {
     // display(bad_temp);
 
     // testing read_from_file;
-    let test = read_from_file("data/test-input-simple.txt");
+    // let test = read_from_file("data/test-input-simple.txt");
+    let test = read_from_file("data/test-input-pride.txt");
+
     for a in test{
         display(a);
     }
@@ -52,7 +54,7 @@ fn read_from_file(filename: &str) -> Vec<sentiment::Analysis>{
     let buf = BufReader::new(file);
     let inputs:Vec<String> = buf.lines() .map(|l| l.expect("Could not parse line")).collect();
 
-    println!("testing reading from file:\n{}", inputs.len());
+    // println!("testing reading from file:\n{}", inputs.len());
 
     for s in inputs{
         let a = analysis::analyze_sentiment(s);

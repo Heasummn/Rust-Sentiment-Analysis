@@ -1,4 +1,7 @@
 use sentiment_analyzer::analysis;
+use std::fs::File;
+use std::io::BufReader;
+use std::io::BufRead;
 
 fn main() {
     // let messages = vec!()
@@ -16,6 +19,12 @@ fn main() {
 
     // display(good_temp);
     // display(bad_temp);
+
+    // testing read_from_file;
+    let test = read_from_file("data/test-input-simple.txt");
+    for a in test{
+        display(a);
+    }
 }
 
 fn display(a: sentiment::Analysis) {
@@ -30,4 +39,26 @@ fn display(a: sentiment::Analysis) {
     println!("{}", p.score);
     println!("{:?}", p.words);
     println!("--------------")
+}
+
+/*
+Assumptions I made;
+    - input will be read from a txt file. if it's a different format, this should be pretty easy to adjust
+*/
+fn read_from_file(filename: &str) -> Vec<sentiment::Analysis>{
+    let mut to_return:Vec<sentiment::Analysis> = Vec::new();
+
+    let file = File::open(filename).expect("Error reading file");
+    let buf = BufReader::new(file);
+    let inputs:Vec<String> = buf.lines() .map(|l| l.expect("Could not parse line")).collect();
+
+    println!("testing reading from file:\n{}", inputs.len());
+
+    for s in inputs{
+        let a = analysis::analyze_sentiment(s);
+        to_return.push(a);
+        // display(a);
+    }
+
+    return to_return;
 }

@@ -22,11 +22,11 @@ fn main() {
 
     //---- testing read_from_file ----
     // let test = read_from_file("data/test-input-simple.txt");
-    // let test = read_from_file("data/test-input-pride.txt");
+    let test = read_from_file("data/test-input-pride.txt");
 
-    // for a in test{
-    //     display(a);
-    // }
+    for a in test{
+        display(a);
+    }
 }
 
 fn display(a: sentiment::Analysis) {
@@ -48,11 +48,16 @@ Assumptions I made;
     - input will be read from a txt file. if it's a different format, this should be pretty easy to adjust
 */
 fn read_from_file(filename: &str) -> Vec<sentiment::Analysis>{
-    let mut to_return:Vec<sentiment::Analysis> = Vec::new();
 
     let file = File::open(filename).expect("Error reading file");
     let buf = BufReader::new(file);
     let inputs:Vec<String> = buf.lines() .map(|l| l.expect("Could not parse line")).collect();
+
+    return strings_to_analyses(inputs);    
+}
+
+fn strings_to_analyses(inputs: Vec<String>) -> Vec<sentiment::Analysis>{
+    let mut to_return:Vec<sentiment::Analysis> = Vec::new();
 
     for s in inputs{
         let a = analysis::analyze_sentiment(s);

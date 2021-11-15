@@ -5,7 +5,10 @@ use dialoguer::{Select, Input, theme::ColorfulTheme};
 // $ rustc src/bin.rs
 // $ ./bin --flag
 
-
+use sentiment_analyzer::analysis;
+use std::fs::File;
+use std::io::BufReader;
+use std::io::BufRead;
 
 fn main() {
     let arguments: Vec<String> = env::args().collect();
@@ -47,6 +50,29 @@ fn main() {
     }   
 }
 
+/*
+Assumptions I made;
+    - input will be read from a txt file. if it's a different format, this should be pretty easy to adjust
+*/
+fn read_from_file(filename: &str) -> Vec<sentiment::Analysis>{
+
+    let file = File::open(filename).expect("Error reading file");
+    let buf = BufReader::new(file);
+    let inputs:Vec<String> = buf.lines() .map(|l| l.expect("Could not parse line")).collect();
+
+    return strings_to_analyses(inputs);    
+}
+
+fn strings_to_analyses(inputs: Vec<String>) -> Vec<sentiment::Analysis>{
+    let mut to_return:Vec<sentiment::Analysis> = Vec::new();
+
+    for s in inputs{
+        let a = analysis::analyze_sentiment(s);
+        to_return.push(a);
+    }
+
+    return to_return;
+}
 
 // Initialize CLI, with the different options. Return choice index
 fn init_cli(items: Vec<&str>) -> usize  {

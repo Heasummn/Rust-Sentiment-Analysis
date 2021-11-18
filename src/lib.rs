@@ -4,6 +4,15 @@ pub use message::Message;
 use sentiment::*;
 
 pub mod analysis { 
+    use std::collections::HashMap;
+        
+    use std::fs::File;
+    use std::io::BufReader;
+    use std::io::BufRead;
+
+    use crate::message::Message; // TODO: why are these needed?
+    use chrono::{DateTime, Utc};
+
     pub fn analyze_sentiment(m: String) -> sentiment::Analysis {
         return sentiment::analyze(m);
     }
@@ -21,7 +30,123 @@ pub mod analysis {
         println!("{:?}", p.words);
         println!("--------------")
     }
+
+    /*
+    Assumptions I made;
+        - input will be read from a txt file. if it's a different format, this should be pretty easy to adjust
+    */
+    pub fn read_from_file(filename: &str) -> Vec<sentiment::Analysis>{
+
+        let file = File::open(filename).expect("Error reading file");
+        let buf = BufReader::new(file);
+        let inputs:Vec<String> = buf.lines() .map(|l| l.expect("Could not parse line")).collect();
+
+        return strings_to_analyses(inputs);    
+    }
+
+    pub fn strings_to_analyses(inputs: Vec<String>) -> Vec<sentiment::Analysis>{
+        let mut to_return:Vec<sentiment::Analysis> = Vec::new();
+
+        for s in inputs{
+            let a = analyze_sentiment(s);
+            to_return.push(a);
+        }
+
+        return to_return;
+    }
+
+    pub fn messages_to_time_analyses_map(inputs: Vec<Message>) -> HashMap<DateTime<Utc>, sentiment::Analysis>{
+        let mut to_return:HashMap<DateTime<Utc>, sentiment::Analysis> = HashMap::new();
+
+        for m in inputs{
+            let a = analyze_sentiment(m.text);
+            to_return.insert(m.time,a);
+        }
+
+        return to_return;
+    }
 }
+
+// TODO: is it alright to basically copy the MP for map reduce algo?
+
+// TODO: maybe move to another file?
+pub mod map_reduce{
+    use std::sync::{mpsc, mpsc::Receiver};
+    use std::collections::HashMap;
+    use std::thread::JoinHandle;
+    use std::hash::Hash;
+    use std::thread;
+
+    use crate::analysis;
+    use crate::message::Message; // TODO: why are these needed?
+    use chrono::{DateTime, Utc};
+    
+    pub fn split_data_into_chunks(items: &Vec<Message>, num_chunks: usize) 
+            -> Vec<Vec<Message>> {
+        let mut result = Vec::new();
+
+        let remainder = items.len() % num_chunks;
+        let starting_size = (items.len() - remainder) / num_chunks;
+
+        let mut counter = 0;
+        for _i in 0..num_chunks{
+            let mut sub_vector = Vec::new();
+            for _j in 0 .. starting_size{
+                sub_vector.push(items[counter]);
+                counter+= 1;
+            }
+            result.push(sub_vector);
+        }
+
+        // assign remainder to sub-vectors
+        for j in 0..remainder{
+            result[j].push(items[counter]);
+            counter+= 1;
+        }
+
+        return result;
+    }
+
+    pub fn multi_threaded_mapper(input: &Vec<Message>, num_chunks: usize) 
+            -> Vec<(JoinHandle<()>, Receiver<HashMap<DateTime<Utc>, sentiment::Analysis>>)> {
+        let mut result = Vec::new();
+
+        let split_input = split_data_into_chunks(input, num_chunks);
+
+        for i in 0..num_chunks{
+            let split_input_chunk = split_input[i]; //.to_owned()?
+            //spawn a new thread
+            let (tx, rx) = mpsc::channel();
+            let handle = thread::spawn(move ||{  
+                //call analysis
+                let chunk_analysis = analysis::messages_to_time_analyses_map(split_input_chunk);  
+
+                tx.send(chunk_analysis).unwrap();
+            });
+            //create tuple of joinhandle and receiver
+            let tuple = (handle, rx);
+            //add tuple to result
+            result.push(tuple);
+        }
+
+        return result;
+    }
+
+    pub fn thread_reducer<KeyType: Clone + Eq + Hash>( receivers: Vec<(JoinHandle<()>, Receiver<HashMap<DateTime<Utc>, sentiment::Analysis>>)>) 
+        -> HashMap<DateTime<Utc>, sentiment::Analysis> {
+    let mut result = HashMap::new();  
+
+        for (handle, rx) in receivers{
+            let thread_map = rx.recv().unwrap();
+
+            for (time, a) in thread_map.iter(){
+                result.insert(time.to_owned(), a.clone());
+            }
+        }
+        return result;
+    }
+}
+
 
 #[cfg(test)]
 mod tests {

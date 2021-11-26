@@ -1,7 +1,7 @@
 mod message; 
 pub use message::Message;
 
-use sentiment::*;
+// use sentiment::*; // why not needed?
 
 pub mod analysis { 
     use std::collections::HashMap;
@@ -55,26 +55,25 @@ pub mod analysis {
         return to_return;
     }
 
-    pub fn messages_to_time_analyses_map(inputs: Vec<Message>) -> HashMap<DateTime<Utc>, sentiment::Analysis>{
-        let mut to_return:HashMap<DateTime<Utc>, sentiment::Analysis> = HashMap::new();
+    pub fn messages_to_time_analyses_map(inputs: &Vec<&Message>) -> HashMap<DateTime<Utc>, Box<sentiment::Analysis>>{
+        let mut to_return:HashMap<DateTime<Utc>, Box<sentiment::Analysis>> = HashMap::new();
 
         for m in inputs{
-            let a = analyze_sentiment(m.text);
-            to_return.insert(m.time,a);
+            let a = analyze_sentiment(m.text.to_owned());
+            to_return.insert(m.time,Box::new(a));
         }
 
         return to_return;
     }
 }
 
-// TODO: is it alright to basically copy the MP for map reduce algo?
 
 // TODO: maybe move to another file?
 pub mod map_reduce{
     use std::sync::{mpsc, mpsc::Receiver};
     use std::collections::HashMap;
     use std::thread::JoinHandle;
-    use std::hash::Hash;
+    // use std::hash::Hash; // why not needed?
     use std::thread;
 
     use crate::analysis;
@@ -82,7 +81,7 @@ pub mod map_reduce{
     use chrono::{DateTime, Utc};
     
     pub fn split_data_into_chunks(items: &Vec<Message>, num_chunks: usize) 
-            -> Vec<Vec<Message>> {
+            -> Vec<Vec<&Message>> {
         let mut result = Vec::new();
 
         let remainder = items.len() % num_chunks;
@@ -92,7 +91,7 @@ pub mod map_reduce{
         for _i in 0..num_chunks{
             let mut sub_vector = Vec::new();
             for _j in 0 .. starting_size{
-                sub_vector.push(items[counter]);
+                sub_vector.push(&items[counter]);
                 counter+= 1;
             }
             result.push(sub_vector);
@@ -100,7 +99,7 @@ pub mod map_reduce{
 
         // assign remainder to sub-vectors
         for j in 0..remainder{
-            result[j].push(items[counter]);
+            result[j].push(&items[counter]);
             counter+= 1;
         }
 
@@ -108,16 +107,16 @@ pub mod map_reduce{
     }
 
     pub fn multi_threaded_mapper(input: &Vec<Message>, num_chunks: usize) 
-            -> Vec<(JoinHandle<()>, Receiver<HashMap<DateTime<Utc>, sentiment::Analysis>>)> {
+            -> Vec<(JoinHandle<()>, Receiver<HashMap<DateTime<Utc>, Box<sentiment::Analysis>>>)> {
         let mut result = Vec::new();
 
         let split_input = split_data_into_chunks(input, num_chunks);
 
         for i in 0..num_chunks{
-            let split_input_chunk = split_input[i]; //.to_owned()?
+            let split_input_chunk = &split_input[i];
             //spawn a new thread
             let (tx, rx) = mpsc::channel();
-            let handle = thread::spawn(move ||{  
+            let handle = thread::spawn(move ||{   // might need to use channels? or 'crossbeam scope'?
                 //call analysis
                 let chunk_analysis = analysis::messages_to_time_analyses_map(split_input_chunk);  
 
@@ -132,15 +131,15 @@ pub mod map_reduce{
         return result;
     }
 
-    pub fn thread_reducer<KeyType: Clone + Eq + Hash>( receivers: Vec<(JoinHandle<()>, Receiver<HashMap<DateTime<Utc>, sentiment::Analysis>>)>) 
-        -> HashMap<DateTime<Utc>, sentiment::Analysis> {
+    pub fn thread_reducer( receivers: Vec<(JoinHandle<()>, Receiver<HashMap<DateTime<Utc>, Box<sentiment::Analysis>>>)>) 
+        -> HashMap<DateTime<Utc>, Box<sentiment::Analysis>> {
     let mut result = HashMap::new();  
 
-        for (handle, rx) in receivers{
+        for (_handle, rx) in receivers{
             let thread_map = rx.recv().unwrap();
 
             for (time, a) in thread_map.iter(){
-                result.insert(time.to_owned(), a.clone());
+                result.insert(time.to_owned(), *a);  // TODO: try heap-allocating the analyses and pass around pointers instead?
             }
         }
         return result;

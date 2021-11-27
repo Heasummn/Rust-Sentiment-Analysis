@@ -1,17 +1,10 @@
 mod message; 
 pub use message::Message;
 
-// use sentiment::*; // why not needed?
-
-pub mod analysis { 
-    use std::collections::HashMap;
-        
+pub mod analysis {        
     use std::fs::File;
     use std::io::BufReader;
     use std::io::BufRead;
-
-    use crate::message::Message; // TODO: why are these needed?
-    use chrono::{DateTime, Utc};
 
     pub fn analyze_sentiment(m: String) -> sentiment::Analysis {
         return sentiment::analyze(m);
@@ -31,10 +24,6 @@ pub mod analysis {
         println!("--------------")
     }
 
-    /*
-    Assumptions I made;
-        - input will be read from a txt file. if it's a different format, this should be pretty easy to adjust
-    */
     pub fn read_from_file(filename: &str) -> Vec<sentiment::Analysis>{
 
         let file = File::open(filename).expect("Error reading file");
@@ -55,97 +44,82 @@ pub mod analysis {
         return to_return;
     }
 
-    pub fn messages_to_time_analyses_map(inputs: &Vec<&Message>) -> HashMap<DateTime<Utc>, Box<sentiment::Analysis>>{
-        let mut to_return:HashMap<DateTime<Utc>, Box<sentiment::Analysis>> = HashMap::new();
-
-        for m in inputs{
-            let a = analyze_sentiment(m.text.to_owned());
-            to_return.insert(m.time,Box::new(a));
-        }
-
-        return to_return;
-    }
 }
 
-
-// TODO: maybe move to another file?
 pub mod map_reduce{
-    use std::sync::{mpsc, mpsc::Receiver};
     use std::collections::HashMap;
-    use std::thread::JoinHandle;
-    // use std::hash::Hash; // why not needed?
     use std::thread;
 
     use crate::analysis;
-    use crate::message::Message; // TODO: why are these needed?
+    use crate::message::Message; 
     use chrono::{DateTime, Utc};
-    
-    pub fn split_data_into_chunks(items: &Vec<Message>, num_chunks: usize) 
-            -> Vec<Vec<&Message>> {
-        let mut result = Vec::new();
 
-        let remainder = items.len() % num_chunks;
-        let starting_size = (items.len() - remainder) / num_chunks;
+    use std::sync::Mutex;
+    use std::sync::Arc;
 
-        let mut counter = 0;
-        for _i in 0..num_chunks{
-            let mut sub_vector = Vec::new();
-            for _j in 0 .. starting_size{
-                sub_vector.push(&items[counter]);
-                counter+= 1;
-            }
-            result.push(sub_vector);
-        }
 
-        // assign remainder to sub-vectors
-        for j in 0..remainder{
-            result[j].push(&items[counter]);
-            counter+= 1;
-        }
+    pub fn map_reduce( input: Vec<Message>, num_chunks: usize) 
+            -> HashMap<DateTime<Utc>, sentiment::Analysis> {
 
-        return result;
-    }
+        // <-----------STEP 1: MAP (split up input and create a thread for each sub-section that calls analysis)----------->
 
-    pub fn multi_threaded_mapper(input: &Vec<Message>, num_chunks: usize) 
-            -> Vec<(JoinHandle<()>, Receiver<HashMap<DateTime<Utc>, Box<sentiment::Analysis>>>)> {
-        let mut result = Vec::new();
+        // variables to help split input;
+        let remainder = input.len() % num_chunks;
+        let starting_size = (input.len() - remainder) / num_chunks;
 
-        let split_input = split_data_into_chunks(input, num_chunks);
+        let mut threads = Vec::new();
+
+        let input_a = Arc::new(Mutex::new(input));
 
         for i in 0..num_chunks{
-            let split_input_chunk = &split_input[i];
-            //spawn a new thread
-            let (tx, rx) = mpsc::channel();
-            let handle = thread::spawn(move ||{   // might need to use channels? or 'crossbeam scope'?
-                //call analysis
-                let chunk_analysis = analysis::messages_to_time_analyses_map(split_input_chunk);  
+            let input_a = Arc::clone(&input_a);
 
-                tx.send(chunk_analysis).unwrap();
+            let handle = thread::spawn( move || -> HashMap<DateTime<Utc>, sentiment::Analysis>{  
+                let mut chunk_analysis:HashMap<DateTime<Utc>, sentiment::Analysis> = HashMap::new();
+
+                for j in 0..starting_size{
+                    let input_m = input_a.lock().unwrap();
+                    let m = &input_m[i*starting_size + j];
+
+                    let a = analysis::analyze_sentiment(m.text.to_owned());
+                    chunk_analysis.insert(m.time,a);
+                }
+
+                return chunk_analysis;
             });
-            //create tuple of joinhandle and receiver
-            let tuple = (handle, rx);
-            //add tuple to result
-            result.push(tuple);
+            threads.push(handle);
         }
+        // handling remainder;
+        let input_a = Arc::clone(&input_a);
+        let handle = thread::spawn( move || -> HashMap<DateTime<Utc>, sentiment::Analysis>{  
+            let mut chunk_analysis:HashMap<DateTime<Utc>, sentiment::Analysis> = HashMap::new();
 
-        return result;
-    }
+            for j in 0..remainder{
+                let input_m = input_a.lock().unwrap();
+                let m = &input_m[num_chunks*starting_size + j];
 
-    pub fn thread_reducer( receivers: Vec<(JoinHandle<()>, Receiver<HashMap<DateTime<Utc>, Box<sentiment::Analysis>>>)>) 
-        -> HashMap<DateTime<Utc>, Box<sentiment::Analysis>> {
-    let mut result = HashMap::new();  
+                let a = analysis::analyze_sentiment(m.text.to_owned());
+                chunk_analysis.insert(m.time,a);
+            }
 
-        for (_handle, rx) in receivers{
-            let thread_map = rx.recv().unwrap();
+            return chunk_analysis;
+        });
+        threads.push(handle);
+        
+        // <-------------STEP 2: REDUCE (aggregate into one result map)------------->
 
-            for (time, a) in thread_map.iter(){
-                result.insert(time.to_owned(), *a);  // TODO: try heap-allocating the analyses and pass around pointers instead?
+        let mut result = HashMap::new();  
+
+        for handle in threads{
+            let map:HashMap<DateTime<Utc>, sentiment::Analysis> = handle.join().unwrap();
+            for (time, a) in map{
+                result.insert(time.to_owned(), a);  
             }
         }
+
         return result;
     }
 }
-
 
 #[cfg(test)]
 mod tests {

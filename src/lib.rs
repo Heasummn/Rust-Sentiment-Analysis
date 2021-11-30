@@ -1,11 +1,9 @@
-mod message; 
-pub use message::Message;
-
-use sentiment::*;
+pub mod message;
 
 pub mod analysis { 
-    pub fn analyze_sentiment(m: String) -> sentiment::Analysis {
-        return sentiment::analyze(m);
+    use crate::message::Message;
+    pub fn analyze_sentiment(m: Message) -> sentiment::Analysis {
+        return sentiment::analyze(m.text);
     }
 
     pub fn display(a: sentiment::Analysis) {

@@ -6,9 +6,13 @@ use dialoguer::{Select, Input, theme::ColorfulTheme};
 // $ ./bin --flag
 
 use sentiment_analyzer::analysis;
+use sentiment_analyzer::message::Message;
 use std::fs::File;
 use std::io::BufReader;
 use std::io::BufRead;
+use chrono::{DateTime};
+use std::time::SystemTime;
+
 
 fn main() {
     let arguments: Vec<String> = env::args().collect();
@@ -58,12 +62,12 @@ fn read_from_file(filename: &str) -> Vec<sentiment::Analysis>{
 
     let file = File::open(filename).expect("Error reading file");
     let buf = BufReader::new(file);
-    let inputs:Vec<String> = buf.lines() .map(|l| l.expect("Could not parse line")).collect();
+    let inputs:Vec<Message> = buf.lines() .map(|l| Message::new(l.expect("Could not parse line"), DateTime::from(SystemTime::now()))).collect();
 
-    return strings_to_analyses(inputs);    
+    return strings_to_analyses(inputs);
 }
 
-fn strings_to_analyses(inputs: Vec<String>) -> Vec<sentiment::Analysis>{
+fn strings_to_analyses(inputs: Vec<Message>) -> Vec<sentiment::Analysis>{
     let mut to_return:Vec<sentiment::Analysis> = Vec::new();
 
     for s in inputs{

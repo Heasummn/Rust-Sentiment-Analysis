@@ -6,15 +6,15 @@ pub mod analysis {
         return sentiment::analyze(m.text);
     }
 
-    pub fn display(a: sentiment::Analysis) {
+    pub fn display(a: &sentiment::Analysis) {
         println!("Overall score: {}", a.score);
         println!("Comparative: {}", a.comparative);
         println!("NEGATIVE:");
-        let n = a.negative;
+        let n = &a.negative;
         println!("{}", n.score);
         println!("{:?}", n.words);
         println!("POSITIVE:");
-        let p = a.positive;
+        let p = &a.positive;
         println!("{}", p.score);
         println!("{:?}", p.words);
         println!("--------------")

@@ -65,7 +65,7 @@ fn main() {
 Assumptions I made;
     - input will be read from a txt file. if it's a different format, this should be pretty easy to adjust
 */
-fn read_from_file(filename: &str) -> Vec<sentiment::Analysis>{
+fn read_from_file(filename: &str) -> Vec<analysis::AnalysisResult> {
 
     let file = File::open(filename).expect("Error reading file");
     let buf = BufReader::new(file);
@@ -79,7 +79,7 @@ Assumptions:
     - input will be a CSV file with format text, timestamp
 */
 
-fn read_from_csv(filename: &str) -> Vec<sentiment::Analysis>{
+fn read_from_csv(filename: &str) -> Vec<analysis::AnalysisResult>{
 
     let rdr = Reader::from_path(filename).expect("Error reading file");
     let inputs : Vec<Message> = rdr.into_records().map(|row| {
@@ -89,8 +89,8 @@ fn read_from_csv(filename: &str) -> Vec<sentiment::Analysis>{
     return strings_to_analyses(inputs);
 }
 
-fn strings_to_analyses(inputs: Vec<Message>) -> Vec<sentiment::Analysis>{
-    let mut to_return:Vec<sentiment::Analysis> = Vec::new();
+fn strings_to_analyses(inputs: Vec<Message>) -> Vec<analysis::AnalysisResult>{
+    let mut to_return:Vec<analysis::AnalysisResult> = Vec::new();
 
     for s in inputs{
         let a = analysis::analyze_sentiment(s);

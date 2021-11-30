@@ -2,12 +2,28 @@ pub mod message;
 
 pub mod analysis { 
     use crate::message::Message;
-    pub fn analyze_sentiment(m: Message) -> sentiment::Analysis {
-        return sentiment::analyze(m.text);
+    use chrono::{DateTime, Utc};
+
+    pub struct AnalysisResult {
+        pub result : sentiment::Analysis,
+        pub time : DateTime<Utc>
     }
 
-    pub fn display(a: &sentiment::Analysis) {
-        println!("Overall score: {}", a.score);
+    impl AnalysisResult {
+        pub fn new(result: sentiment::Analysis, time: DateTime<Utc>) -> AnalysisResult {
+            AnalysisResult {
+                result, time
+            }
+        }
+    }
+
+    pub fn analyze_sentiment(m: Message) -> AnalysisResult {
+        return AnalysisResult::new(sentiment::analyze(m.text), m.time);
+    }
+
+    pub fn display(r: &AnalysisResult) {
+        let a = &r.result;
+        println!("Overall score at {}: {}", &r.time.to_rfc2822(), a.score);
         println!("Comparative: {}", a.comparative);
         println!("NEGATIVE:");
         let n = &a.negative;

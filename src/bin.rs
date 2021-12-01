@@ -5,6 +5,7 @@ extern crate dotenv;
 
 use std::env;
 use dialoguer::{Select, Input, theme::ColorfulTheme};
+use glob::{glob, Paths};
 
 // TO USE, RUN:
 // $ rustc src/bin.rs
@@ -15,6 +16,7 @@ use sentiment_analyzer::message::Message;
 use std::fs::File;
 use std::io::BufReader;
 use std::io::BufRead;
+use std::path::{Path, PathBuf};
 use std::str::FromStr;
 use chrono::{DateTime, Utc};
 use std::time::SystemTime;
@@ -23,6 +25,9 @@ use dotenv::dotenv;
 
 #[tokio::main]
 async fn main() {
+    // select_file();
+    // return;
+
     let arguments: Vec<String> = env::args().collect();
 
     if arguments.len() < 2 {
@@ -154,4 +159,36 @@ fn get_input(prompt: &str) -> String {
         .interact_text()
         .unwrap();
     return input;
+}
+
+fn select_file() {
+
+    let mut current_path = PathBuf::from(std::env::current_dir().unwrap());
+    
+    
+    while true {
+        println!("current path: {}", current_path.display());
+        env::set_current_dir(&current_path.display().to_string());
+        let p : glob::Paths = glob("*").unwrap();
+        let mut options : Vec<String> = Vec::new();
+        
+        if (current_path.display().to_string() != "/") {
+            options.push("..".to_string());
+        } else {
+            // THROW ERROR
+        }
+        
+        for i in p {
+            let s = i.unwrap().display().to_string();
+            options.push(s);
+        }
+        
+        let i = init_cli(options.iter().map(|x| x as &str).collect());
+        if (i == 0) {
+            current_path.pop();
+        } else {
+            current_path.push(&options[i])
+        }
+    }
+
 }

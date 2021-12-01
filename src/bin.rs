@@ -18,8 +18,8 @@ use std::time::SystemTime;
 use csv::Reader;
 
 fn main() {
-    select_file();
-    return;
+    //select_file();
+    //return;
 
     let arguments: Vec<String> = env::args().collect();
 

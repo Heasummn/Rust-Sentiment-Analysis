@@ -1,3 +1,8 @@
+#[macro_use]
+extern crate dotenv_codegen;
+extern crate dotenv;
+
+
 use std::env;
 use dialoguer::{Select, Input, theme::ColorfulTheme};
 use glob::{glob, Paths};
@@ -16,10 +21,12 @@ use std::str::FromStr;
 use chrono::{DateTime, Utc};
 use std::time::SystemTime;
 use csv::Reader;
+use dotenv::dotenv;
 
-fn main() {
-    select_file();
-    return;
+#[tokio::main]
+async fn main() {
+    // select_file();
+    // return;
 
     let arguments: Vec<String> = env::args().collect();
 
@@ -28,21 +35,25 @@ fn main() {
         let integrations = vec!["CSV File Input", "Twitter Data"];
         let input_method = init_cli(integrations);
 
-        
+
         match input_method {
-            0 => { 
+            0 => {
                 println!("Index 0");
                 let string = get_input("Filename");
-                let out = read_from_csv(&string.to_string());
+                let out = strings_to_analyses(read_from_csv(&string.to_string()));
                 analysis::display(&out[0]);
             },
-            1 => println!("Index 1"),
+            1 => {
+                let string = get_input("User");
+                let out = strings_to_analyses(twitter_user_to_messages(string, 10).await);
+                analysis::display(&out[0]);
+            },
             _ => println!("Unseen index!") //Should never happen (new function called for each input format)
         }
 
         // let string = get_input("Test Input");
         // println!("{}", string);
-        
+
     } else {
         // Passed in as arguments, and not using the CLI
         let input_format = arguments[1].to_lowercase(); //Second flag in the series (input format)
@@ -62,7 +73,7 @@ fn main() {
                 println!("Invalid input! (Case C)")
             }
         }
-    }   
+    }
 }
 
 /*
@@ -83,14 +94,14 @@ Assumptions:
     - input will be a CSV file with format text, timestamp
 */
 
-fn read_from_csv(filename: &str) -> Vec<analysis::AnalysisResult>{
+fn read_from_csv(filename: &str) -> Vec<Message> {
 
     let rdr = Reader::from_path(filename).expect("Error reading file");
     let inputs : Vec<Message> = rdr.into_records().map(|row| {
         Message::new(row.as_ref().unwrap()[0].to_string(), DateTime::<Utc>::from_str(&row.unwrap()[1]).unwrap())
     }).collect();
 
-    return strings_to_analyses(inputs);
+    return inputs;
 }
 
 fn strings_to_analyses(inputs: Vec<Message>) -> Vec<analysis::AnalysisResult>{
@@ -104,13 +115,35 @@ fn strings_to_analyses(inputs: Vec<Message>) -> Vec<analysis::AnalysisResult>{
     return to_return;
 }
 
+async fn twitter_user_to_messages(handle: String, page_size: i32) -> Vec<Message> {
+    // read from .env file
+    dotenv().ok();
+    let con_token = egg_mode::KeyPair::new(dotenv!("API_KEY", "API_KEY is not set!"), dotenv!("API_SECRET", "API_SECRET is not set!"));
+    let access_token = egg_mode::KeyPair::new(dotenv!("ACCESS_TOKEN", "ACCESS_TOKEN is not set!"), dotenv!("ACCESS_SECRET", "ACCESS_SECRET is not set!"));
+    let token = egg_mode::Token::Access {
+        consumer: con_token,
+        access: access_token,
+    };
+
+    let user_id : egg_mode::user::UserID = handle.into();
+    // let user = egg_mode::user::show(user, &token).await.unwrap();
+    let timeline = egg_mode::tweet::user_timeline(user_id, true, true, &token).with_page_size(page_size);
+    let (timeline, feed) = timeline.start().await.unwrap();
+    let mut ret = Vec::new();
+    for tweet in feed.iter() {
+        ret.push(Message::new(tweet.text.to_string(), DateTime::<Utc>::from(tweet.created_at)));
+    }
+
+    return ret;
+}
+
 // Initialize CLI, with the different options. Return choice index
 fn init_cli(items: Vec<&str>) -> usize  {
     let selection: usize = Select::with_theme(&ColorfulTheme::default())
         .items(&items)
         .default(0)
         .interact()
-        .unwrap();    
+        .unwrap();
     return selection;
 }
 

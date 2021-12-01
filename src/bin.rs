@@ -10,7 +10,7 @@ use sentiment_analyzer::analysis;
 use sentiment_analyzer::message::Message;
 use std::fs::File;
 use std::io::BufReader;
-use std::io::BufRead
+use std::io::BufRead;
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
 use chrono::{DateTime, Utc};

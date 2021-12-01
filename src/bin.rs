@@ -7,10 +7,15 @@ use glob::{glob, Paths};
 // $ ./bin --flag
 
 use sentiment_analyzer::analysis;
+use sentiment_analyzer::message::Message;
 use std::fs::File;
 use std::io::BufReader;
-use std::io::BufRead;
+use std::io::BufRead
 use std::path::{Path, PathBuf};
+use std::str::FromStr;
+use chrono::{DateTime, Utc};
+use std::time::SystemTime;
+use csv::Reader;
 
 fn main() {
     select_file();
@@ -25,13 +30,18 @@ fn main() {
 
         
         match input_method {
-            0 => println!("Index 0"),
+            0 => { 
+                println!("Index 0");
+                let string = get_input("Filename");
+                let out = read_from_csv(&string.to_string());
+                analysis::display(&out[0]);
+            },
             1 => println!("Index 1"),
             _ => println!("Unseen index!") //Should never happen (new function called for each input format)
         }
 
-        let string = get_input("Test Input");
-        println!("{}", string);
+        // let string = get_input("Test Input");
+        // println!("{}", string);
         
     } else {
         // Passed in as arguments, and not using the CLI
@@ -59,17 +69,32 @@ fn main() {
 Assumptions I made;
     - input will be read from a txt file. if it's a different format, this should be pretty easy to adjust
 */
-fn read_from_file(filename: &str) -> Vec<sentiment::Analysis>{
+fn read_from_file(filename: &str) -> Vec<analysis::AnalysisResult> {
 
     let file = File::open(filename).expect("Error reading file");
     let buf = BufReader::new(file);
-    let inputs:Vec<String> = buf.lines() .map(|l| l.expect("Could not parse line")).collect();
+    let inputs:Vec<Message> = buf.lines() .map(|l| Message::new(l.expect("Could not parse line"), DateTime::from(SystemTime::now()))).collect();
 
-    return strings_to_analyses(inputs);    
+    return strings_to_analyses(inputs);
 }
 
-fn strings_to_analyses(inputs: Vec<String>) -> Vec<sentiment::Analysis>{
-    let mut to_return:Vec<sentiment::Analysis> = Vec::new();
+/*
+Assumptions:
+    - input will be a CSV file with format text, timestamp
+*/
+
+fn read_from_csv(filename: &str) -> Vec<analysis::AnalysisResult>{
+
+    let rdr = Reader::from_path(filename).expect("Error reading file");
+    let inputs : Vec<Message> = rdr.into_records().map(|row| {
+        Message::new(row.as_ref().unwrap()[0].to_string(), DateTime::<Utc>::from_str(&row.unwrap()[1]).unwrap())
+    }).collect();
+
+    return strings_to_analyses(inputs);
+}
+
+fn strings_to_analyses(inputs: Vec<Message>) -> Vec<analysis::AnalysisResult>{
+    let mut to_return:Vec<analysis::AnalysisResult> = Vec::new();
 
     for s in inputs{
         let a = analysis::analyze_sentiment(s);

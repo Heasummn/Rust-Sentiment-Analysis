@@ -1,8 +1,8 @@
 use chrono::{DateTime, Utc};
 
 pub struct Message {
-    text: String,
-    time: DateTime<Utc>
+    pub text: String,
+    pub time: DateTime<Utc>
 }
 
 impl Message {

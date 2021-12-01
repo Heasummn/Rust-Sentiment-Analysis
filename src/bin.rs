@@ -40,12 +40,12 @@ async fn main() {
             0 => {
                 println!("Index 0");
                 let string = get_input("Filename");
-                let out = read_from_csv(&string.to_string());
+                let out = strings_to_analyses(read_from_csv(&string.to_string()));
                 analysis::display(&out[0]);
             },
             1 => {
                 let string = get_input("User");
-                let out = twitter_user_to_analysis(string, 10).await;
+                let out = strings_to_analyses(twitter_user_to_messages(string, 10).await);
                 analysis::display(&out[0]);
             },
             _ => println!("Unseen index!") //Should never happen (new function called for each input format)
@@ -94,14 +94,14 @@ Assumptions:
     - input will be a CSV file with format text, timestamp
 */
 
-fn read_from_csv(filename: &str) -> Vec<analysis::AnalysisResult>{
+fn read_from_csv(filename: &str) -> Vec<Message> {
 
     let rdr = Reader::from_path(filename).expect("Error reading file");
     let inputs : Vec<Message> = rdr.into_records().map(|row| {
         Message::new(row.as_ref().unwrap()[0].to_string(), DateTime::<Utc>::from_str(&row.unwrap()[1]).unwrap())
     }).collect();
 
-    return strings_to_analyses(inputs);
+    return inputs;
 }
 
 fn strings_to_analyses(inputs: Vec<Message>) -> Vec<analysis::AnalysisResult>{
@@ -115,7 +115,7 @@ fn strings_to_analyses(inputs: Vec<Message>) -> Vec<analysis::AnalysisResult>{
     return to_return;
 }
 
-async fn twitter_user_to_analysis(handle: String, page_size: i32) -> Vec<analysis::AnalysisResult> {
+async fn twitter_user_to_messages(handle: String, page_size: i32) -> Vec<Message> {
     // read from .env file
     dotenv().ok();
     let con_token = egg_mode::KeyPair::new(dotenv!("API_KEY", "API_KEY is not set!"), dotenv!("API_SECRET", "API_SECRET is not set!"));
@@ -134,11 +134,7 @@ async fn twitter_user_to_analysis(handle: String, page_size: i32) -> Vec<analysi
         ret.push(Message::new(tweet.text.to_string(), DateTime::<Utc>::from(tweet.created_at)));
     }
 
-    return strings_to_analyses(ret);
-
-
-
-
+    return ret;
 }
 
 // Initialize CLI, with the different options. Return choice index

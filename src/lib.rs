@@ -35,43 +35,21 @@ pub mod analysis {
         println!("{:?}", p.words);
         println!("--------------")
     }
-
-    pub fn read_from_file(filename: &str) -> Vec<sentiment::Analysis>{
-
-        let file = File::open(filename).expect("Error reading file");
-        let buf = BufReader::new(file);
-        let inputs:Vec<String> = buf.lines() .map(|l| l.expect("Could not parse line")).collect();
-
-        return strings_to_analyses(inputs);    
-    }
-
-    pub fn strings_to_analyses(inputs: Vec<String>) -> Vec<sentiment::Analysis>{
-        let mut to_return:Vec<sentiment::Analysis> = Vec::new();
-
-        for s in inputs{
-            let a = analyze_sentiment(s);
-            to_return.push(a);
-        }
-
-        return to_return;
-    }
-
 }
 
 pub mod map_reduce{
-    use std::collections::HashMap;
     use std::thread;
 
     use crate::analysis;
     use crate::message::Message; 
-    use chrono::{DateTime, Utc};
+    use crate::analysis::AnalysisResult;
 
     use std::sync::Mutex;
     use std::sync::Arc;
 
 
     pub fn map_reduce( input: Vec<Message>, num_chunks: usize) 
-            -> HashMap<DateTime<Utc>, sentiment::Analysis> {
+            -> Vec<AnalysisResult> {
 
         // <-----------STEP 1: MAP (split up input and create a thread for each sub-section that calls analysis)----------->
 
@@ -86,15 +64,16 @@ pub mod map_reduce{
         for i in 0..num_chunks{
             let input_a = Arc::clone(&input_a);
 
-            let handle = thread::spawn( move || -> HashMap<DateTime<Utc>, sentiment::Analysis>{  
-                let mut chunk_analysis:HashMap<DateTime<Utc>, sentiment::Analysis> = HashMap::new();
+            let handle = thread::spawn( move || -> Vec<AnalysisResult>{  
+                let mut chunk_analysis:Vec<AnalysisResult> = Vec::new();
 
                 for j in 0..starting_size{
                     let input_m = input_a.lock().unwrap();
                     let m = &input_m[i*starting_size + j];
 
-                    let a = analysis::analyze_sentiment(m.text.to_owned());
-                    chunk_analysis.insert(m.time,a);
+                    let m_deep_clone = Message::new(m.text.to_owned(), m.time);
+                    let a = analysis::analyze_sentiment(m_deep_clone); //TODO: .to_owned()?
+                    chunk_analysis.push(a);
                 }
 
                 return chunk_analysis;
@@ -103,15 +82,16 @@ pub mod map_reduce{
         }
         // handling remainder;
         let input_a = Arc::clone(&input_a);
-        let handle = thread::spawn( move || -> HashMap<DateTime<Utc>, sentiment::Analysis>{  
-            let mut chunk_analysis:HashMap<DateTime<Utc>, sentiment::Analysis> = HashMap::new();
+        let handle = thread::spawn( move || -> Vec<AnalysisResult>{  
+            let mut chunk_analysis:Vec<AnalysisResult> = Vec::new();
 
-            for j in 0..remainder{
+            for j in 0..starting_size{
                 let input_m = input_a.lock().unwrap();
                 let m = &input_m[num_chunks*starting_size + j];
 
-                let a = analysis::analyze_sentiment(m.text.to_owned());
-                chunk_analysis.insert(m.time,a);
+                let m_deep_clone = Message::new(m.text.to_owned(), m.time);
+                let a = analysis::analyze_sentiment(m_deep_clone); //TODO: .to_owned()?
+                chunk_analysis.push(a);
             }
 
             return chunk_analysis;
@@ -120,12 +100,12 @@ pub mod map_reduce{
         
         // <-------------STEP 2: REDUCE (aggregate into one result map)------------->
 
-        let mut result = HashMap::new();  
+        let mut result = Vec::new();  
 
         for handle in threads{
-            let map:HashMap<DateTime<Utc>, sentiment::Analysis> = handle.join().unwrap();
-            for (time, a) in map{
-                result.insert(time.to_owned(), a);  
+            let vec:Vec<AnalysisResult> = handle.join().unwrap();
+            for a in vec{
+                result.push(a);  
             }
         }
 

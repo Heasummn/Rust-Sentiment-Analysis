@@ -48,31 +48,44 @@ pub mod map_reduce{
     use std::sync::Arc;
 
 
+    /*
+        Analyzes a vector of Messages to return a vector of AnalysisResults, but
+        uses multi-threading to speed up the process. Each call of analysis is expensive,
+        but this way multiple calls of it can be called simultaneously. 
+        Also requires a 'num_chunks' usize in input, which is about equal to the number
+        of threads created. Must be between 0 and length of input. 
+    */
     pub fn map_reduce( input: Vec<Message>, num_chunks: usize) 
             -> Vec<AnalysisResult> {
 
         // <-----------STEP 1: MAP (split up input and create a thread for each sub-section that calls analysis)----------->
 
         // variables to help split input;
+        // the following code will create one thread for each of num_chunks
+        // that analyzes an equal-sized(starting_size) portion of the input.
+        // then one last thread will analyze what is left of the input.
+        // all the threads will be collected to use in the 'reduce' step later.
         let remainder = input.len() % num_chunks;
         let starting_size = (input.len() - remainder) / num_chunks;
 
         let mut threads = Vec::new();
 
-        let input_a = Arc::new(Mutex::new(input));
+        // initial declaration of Arc and Mutex storing input vector
+        // - necessary to allow multiple threads to access same vector
+        let input_arc = Arc::new(Mutex::new(input));
 
         for i in 0..num_chunks{
-            let input_a = Arc::clone(&input_a);
-
+            let input_arc = Arc::clone(&input_arc);
             let handle = thread::spawn( move || -> Vec<AnalysisResult>{  
                 let mut chunk_analysis:Vec<AnalysisResult> = Vec::new();
 
                 for j in 0..starting_size{
-                    let input_m = input_a.lock().unwrap();
+                    let input_m = input_arc.lock().unwrap();
                     let m = &input_m[i*starting_size + j];
 
+                    // need to manually deep clone Message to pass into analyze_sentiment...
                     let m_deep_clone = Message::new(m.text.to_owned(), m.time);
-                    let a = analysis::analyze_sentiment(m_deep_clone); //TODO: .to_owned()?
+                    let a = analysis::analyze_sentiment(m_deep_clone); 
                     chunk_analysis.push(a);
                 }
 
@@ -80,15 +93,16 @@ pub mod map_reduce{
             });
             threads.push(handle);
         }
-        // handling remainder;
-        let input_a = Arc::clone(&input_a);
-        let handle = thread::spawn( move || -> Vec<AnalysisResult>{  
+        // repeating process to handle remainder inputs;
+        let input_arc = Arc::clone(&input_arc);
+        let remainder_handle = thread::spawn( move || -> Vec<AnalysisResult>{  
             let mut chunk_analysis:Vec<AnalysisResult> = Vec::new();
 
             for j in 0..starting_size{
-                let input_m = input_a.lock().unwrap();
+                let input_m = input_arc.lock().unwrap();
                 let m = &input_m[num_chunks*starting_size + j];
 
+                // need to manually deep clone Message to pass into analyze_sentiment...
                 let m_deep_clone = Message::new(m.text.to_owned(), m.time);
                 let a = analysis::analyze_sentiment(m_deep_clone); //TODO: .to_owned()?
                 chunk_analysis.push(a);
@@ -96,17 +110,16 @@ pub mod map_reduce{
 
             return chunk_analysis;
         });
-        threads.push(handle);
+        threads.push(remainder_handle);
         
         // <-------------STEP 2: REDUCE (aggregate into one result map)------------->
 
+        // unwrap each of the threads from step 1 and collect results into 
+        // one vector of AnaylsisResults to return.
         let mut result = Vec::new();  
 
         for handle in threads{
-            let vec:Vec<AnalysisResult> = handle.join().unwrap();
-            for a in vec{
-                result.push(a);  
-            }
+            for a in handle.join().unwrap(){ result.push(a); }
         }
 
         return result;

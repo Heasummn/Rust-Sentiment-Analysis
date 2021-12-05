@@ -13,6 +13,8 @@ use glob::{glob, Paths};
 
 use sentiment_analyzer::analysis;
 use sentiment_analyzer::message::Message;
+use sentiment_analyzer::map_reduce;
+use sentiment_analyzer::map_reduce::map_reduce_messages_to_analyses;
 use std::fs::File;
 use std::io::BufReader;
 use std::io::BufRead;
@@ -39,15 +41,15 @@ async fn main() {
         match input_method {
             0 => {
                 println!("Index 0");
-                // let string = get_input("Filename");
                 let string = select_file();
-                // let out = strings_to_analyses(read_from_csv(&string.to_string()));
-                let out = strings_to_analyses(read_from_csv(&string));
+                let out = map_reduce::map_reduce_messages_to_analyses(read_from_csv(&string.to_string())); 
+
                 analysis::display(&out[0]);
             },
             1 => {
                 let string = get_input("User");
-                let out = strings_to_analyses(twitter_user_to_messages(string, 10).await);
+                // let out = messages_to_analyses(twitter_user_to_messages(string, 10).await);
+                let out = map_reduce::map_reduce_messages_to_analyses(twitter_user_to_messages(string, 10).await); 
                 analysis::display(&out[0]);
             },
             _ => println!("Unseen index!") //Should never happen (new function called for each input format)
@@ -88,7 +90,7 @@ fn read_from_file(filename: &str) -> Vec<analysis::AnalysisResult> {
     let buf = BufReader::new(file);
     let inputs:Vec<Message> = buf.lines() .map(|l| Message::new(l.expect("Could not parse line"), DateTime::from(SystemTime::now()))).collect();
 
-    return strings_to_analyses(inputs);
+    return messages_to_analyses(inputs);
 }
 
 /*
@@ -106,7 +108,7 @@ fn read_from_csv(filename: &str) -> Vec<Message> {
     return inputs;
 }
 
-fn strings_to_analyses(inputs: Vec<Message>) -> Vec<analysis::AnalysisResult>{
+fn messages_to_analyses(inputs: Vec<Message>) -> Vec<analysis::AnalysisResult>{
     let mut to_return:Vec<analysis::AnalysisResult> = Vec::new();
 
     for s in inputs{

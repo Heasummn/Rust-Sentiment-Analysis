@@ -23,3 +23,4 @@ egg-mode = "0.16.0"
 dotenv = "0.15.0"
 dotenv_codegen = "0.15.0"
 tokio = { version = "1.14.0", features = ["full"] }
+num_cpus = "1.13.0"

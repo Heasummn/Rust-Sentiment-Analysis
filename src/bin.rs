@@ -41,9 +41,9 @@ async fn main() {
         match input_method {
             0 => {
                 println!("Index 0");
-                let string = get_input("Filename");
-                // let out = messages_to_analyses(read_from_csv(&string.to_string()));
+                let string = select_file();
                 let out = map_reduce::map_reduce_messages_to_analyses(read_from_csv(&string.to_string())); 
+
                 analysis::display(&out[0]);
             },
             1 => {
@@ -161,10 +161,9 @@ fn get_input(prompt: &str) -> String {
     return input;
 }
 
-fn select_file() {
+fn select_file() -> String{
 
     let mut current_path = PathBuf::from(std::env::current_dir().unwrap());
-    
     
     while true {
         println!("current path: {}", current_path.display());
@@ -184,11 +183,27 @@ fn select_file() {
         }
         
         let i = init_cli(options.iter().map(|x| x as &str).collect());
-        if (i == 0) {
+        if i == 0 && options[0] == ".." {
             current_path.pop();
         } else {
-            current_path.push(&options[i])
+            current_path.push(&options[i]);
         }
+        
+        if !current_path.is_dir() {
+            let x = current_path.extension();
+            match x {
+                Some(e) => {
+                    if e == "csv" {
+                        return current_path.display().to_string();
+                    } else {
+                        current_path.pop();   
+                    }
+                },
+                None => {current_path.pop();}
+            }
+        }
+
     }
+    return "".to_string();
 
 }
